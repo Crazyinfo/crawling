@@ -1,0 +1,63 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+plt.style.use('ggplot')#绘图风格，纯粹好看
+
+# 由于直接使用pd.read_csv()会出现Initializing from file failed报错，因为文件名中有中文，故用open
+with open(r'C:\Users\九九\Desktop\me-git\大二下\管理定量分析\潘炤\jobanalysis\DataAnalyst.csv',encoding='gb2312') as f:
+    df=pd.read_csv(f)
+    #print(df.head())
+    #print(df.info()) # 显示数据信息
+    #print(len(df.positionId.unique())) #不重复样本数量：5031
+    
+    df_duplicates=df.drop_duplicates(subset='positionId',keep='first').copy() # 删除positionId重复的项
+    #print(df_duplicates.head())
+    
+    #处理表格薪资一栏出现的脏数据。
+    def cut_word(word,method):
+        position=word.find('-') # 找到-在整个字符串中的位置，返回数字
+        length=len(word)
+        if position !=-1:
+            bottomSalary=word[:position-1]
+            topSalary=word[position+1:length-1]
+        else:
+    #upper()把字母转化成大写。
+            bottomSalary=word[:word.upper().find('K')]
+            topSalary=bottomSalary
+        if method =='bottom':
+            return bottomSalary
+        else:
+            return topSalary
+        #return bottomsalary,topsalary   
+    df_duplicates['topSalary']=df_duplicates.salary.apply(cut_word,method='top')
+    df_duplicates['bottomSalary']=df_duplicates.salary.apply(cut_word,method='bottom')
+    #把薪资转化成数据类型:int。
+    df_duplicates.bottomSalary=df_duplicates.bottomSalary.astype('int')
+    df_duplicates.topSalary=df_duplicates.topSalary.astype('int')
+    #求平均薪资。
+    df_duplicates['avgSalary']=df_duplicates.apply(lambda x:(x.bottomSalary+x.topSalary)/2,axis=1) #axis是apply中的参数，axis=0表示将函数用在行，axis=1则是列。
+    #print(df_duplicates)
+    
+    # 选择自己有用的列进行分析拷贝
+    df_clean=df_duplicates[['industryField', 'avgSalary']].copy()
+    #print(df_clean.industryField.value_counts())
+    def word_split(word):
+        position=word.find(',') # 有许多行业后面有细分，只去大类
+        if position !=-1:
+            industryField = word[:position]
+            return industryField
+        else:
+            return word
+    df_clean['industryField']=df_duplicates.industryField.apply(word_split)
+    # 一个分析点，行业领域数量
+    print(df_clean.industryField.value_counts())
+    #print(df_clean)
+    # 一个分析点，工资与行业领域的关系
+    df_clean.groupby(df_clean.industryField).avgSalary.median().sort_values(ascending=False)
+
+    df_clean.industryField=df_clean.industryField.astype('category')
+    df_clean.industryField.cat.set_categories(['移动互联网','金融','电子商务','数据服务','企业服务','O2O','其他', '信息安全', '教育', '游戏'],inplace=True)
+    df_clean.boxplot(column='avgSalary',by='industryField',figsize=(9,6))
+
+    print(df_clean.groupby(df_clean.industryField).avgSalary.mean().sort_values(ascending=False))
+    
